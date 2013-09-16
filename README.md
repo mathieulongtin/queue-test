@@ -2,6 +2,11 @@
 
 The goal is to write some quick python script to performance test queuing systems.
 
+Ideally, we'd like to try to figure out the following things:
+- Maximum throughput of a system on  hardware
+- How much memory per job is required
+-
+
 ## Test is in four steps
 
 - Load X jobs with N workers
