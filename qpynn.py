@@ -6,11 +6,11 @@ This was done strictly to compare to other queues. It is in the same speed class
 beanstalkd, although it offers significantly less features. Part of the speed gains
 seems to be from 0mq using a separate CPU thread for handling I/O.
 
-- Uses 0mq for communication
+- Uses nanomsg for communication
 
 TODO
 - Invalidate a reservation (can't cancel a job if held by another worker)
-- Command line to set endpoint
+- Command line argument to set endpoint and other things
 
 """
 import collections,logging,time,uuid
