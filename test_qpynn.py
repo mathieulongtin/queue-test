@@ -1,6 +1,6 @@
 import argparse,os,sys,time
 import logging
-import qpy
+import qpynn
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -26,7 +26,7 @@ class QpyTester(object):
         self.num_queues = num_queues
 
     def connect(self):
-        self.qpy = qpy.Client()
+        self.qpy = qpynn.Client()
 
     def load(self, num_tasks):
         self.connect()
