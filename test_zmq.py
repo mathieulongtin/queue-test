@@ -1,6 +1,7 @@
 import argparse,collections,os,sys,threading,time
 import logging
 import zmq
+from utils import run_processes
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(process)d] %(levelname)s %(message)s')
@@ -8,45 +9,34 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(process)d] %(lev
 in_endpoint = 'tcp://127.0.0.1:7893'
 out_endpoint = 'tcp://127.0.0.1:7894'
 
-def run_processes(functions):
-    pids = set()
-    for function in functions:
-        pid = os.fork()
-        if pid == 0:
-            function()
-            sys.exit(0)
-        else:
-            logger.info("Spawned process %d", pid)
-            pids.add(pid)
-
-    while pids:
-        pid,status_code = os.wait()
-        if status_code != 0:
-            logger.info("Process %d done (status code: %d)", pid, status_code)
-        pids.remove(pid)
-
 class QpyTester(object):
+    in_socket = None
+    out_socket = None
     def __init__(self, num_queues = 1):
         self.num_queues = num_queues
 
-    def connect(self):
+    def connect(self, recv=True,send=True):
         self.zmq_context = zmq.Context()
-        self.in_socket = self.zmq_context.socket(zmq.PULL)
-        self.in_socket.connect(in_endpoint)
-        self.in_socket.setsockopt(zmq.SNDHWM,1)
-        self.in_socket.setsockopt(zmq.RCVHWM,1)
-        self.out_socket = self.zmq_context.socket(zmq.PUSH)
-        self.out_socket.connect(out_endpoint)
-        self.out_socket.setsockopt(zmq.SNDHWM,1)
-        self.out_socket.setsockopt(zmq.RCVHWM,1)
+        if recv:
+            self.in_socket = self.zmq_context.socket(zmq.PULL)
+            self.in_socket.connect(in_endpoint)
+            #self.in_socket.setsockopt(zmq.SNDHWM,1)
+            #self.in_socket.setsockopt(zmq.RCVHWM,1)
+        if send:
+            self.out_socket = self.zmq_context.socket(zmq.PUSH)
+            self.out_socket.connect(out_endpoint)
+            #self.out_socket.setsockopt(zmq.SNDHWM,1)
+            #self.out_socket.setsockopt(zmq.RCVHWM,1)
 
     def disconnect(self):
-        self.in_socket.close(1000)
-        self.out_socket.close(1000)
-        time.sleep(10)
+        if self.in_socket:
+            self.in_socket.close(1000)
+        if self.out_socket:
+            self.out_socket.close(1000)
+        #time.sleep(10)
 
     def load(self, num_tasks):
-        self.connect()
+        self.connect(recv=False)
         for i in range(num_tasks):
             self.out_socket.send_multipart(["q0","%d" % i])
         self.disconnect()
@@ -57,10 +47,10 @@ class QpyTester(object):
         self.zmq_context = zmq.Context()
         self.in_socket = self.zmq_context.socket(zmq.PULL)
         self.in_socket.bind(out_endpoint)
-        self.in_socket.hwm = 1
+        #self.in_socket.hwm = 1
         self.out_socket = self.zmq_context.socket(zmq.PUSH)
         self.out_socket.bind(in_endpoint)
-        self.out_socket.hwm = 1
+        #self.out_socket.hwm = 1
 
         start_time = time.time()
         counter = collections.Counter()
