@@ -4,13 +4,15 @@ Based roughly on beanstalkd protocol.
 
 This was done strictly to compare to other queues. It is in the same speed class as
 beanstalkd, although it offers significantly less features. Part of the speed gains
-seems to be from 0mq using a separate CPU thread for handling I/O.
+seems to be from 0mq using a separate CPU thread for handling I/O. It would be interesting
+to modify beanstalkd to use 0mq as transport instead of TCP.
 
 - Uses 0mq for communication
 
 TODO
 - Invalidate a reservation (can't cancel a job if held by another worker)
-- Command line to set endpoint
+- Command line option to set endpoint
+- Backup to disk (periodic or incremental)
 
 """
 import collections,logging,time,uuid
