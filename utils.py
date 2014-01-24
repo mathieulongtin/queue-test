@@ -120,7 +120,7 @@ class QueueTester(object):
         ap.add_argument('num_workers', type=int)
         ap.add_argument('num_queues', type=int, default=1, nargs='?')
         ap.add_argument('--no-server', action='store_true',
-                        help="Don't start beanstalkd server")
+                        help="Don't start queue server")
         ap.add_argument('-v', '--verbose', action='store_true',
                         help='Debug output is enabled')
 
