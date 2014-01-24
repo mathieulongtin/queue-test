@@ -1,25 +1,10 @@
 import argparse,os,sys,time
 import logging
 import qpy
+from utils import run_processes
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
-
-def run_processes(functions):
-    pids = set()
-    for function in functions:
-        pid = os.fork()
-        if pid == 0:
-            function()
-            sys.exit(0)
-        else:
-            logger.info("Spawned process %d", pid)
-            pids.add(pid)
-
-    while pids:
-        pid,status_code = os.wait()
-        logger.info("Process %d done (status code: %d)", pid, status_code)
-        pids.remove(pid)
 
 class QpyTester(object):
     def __init__(self, num_queues = 1):
