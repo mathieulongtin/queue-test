@@ -1,9 +1,10 @@
-import argparse,os,sys,time
+import argparse,os,sys,time,collections,subprocess
 import logging
 import beanstalkc
 
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 def run_processes(functions):
     pids = set()
@@ -13,12 +14,12 @@ def run_processes(functions):
             function()
             sys.exit(0)
         else:
-            logger.info("Spawned process %d", pid)
+            logger.debug("Spawned process %d", pid)
             pids.add(pid)
 
     while pids:
         pid,status_code = os.wait()
-        logger.info("Process %d done (status code: %d)", pid, status_code)
+        logger.debug("Process %d done (status code: %d)", pid, status_code)
         pids.remove(pid)
 
 class BeanstalkTester(object):
@@ -34,36 +35,41 @@ class BeanstalkTester(object):
         self.connect()
         self.beanstalk.use('q0')
         for i in range(num_tasks):
-            self.beanstalk.put("q1:%d" % i)
+            self.beanstalk.put("q0:%d" % i)
         logger.info("Loaded %d tasks", num_tasks)
 
     def work(self):
         self.connect()
         queues = {}
-        for i in range(self.num_queues-1):
+        for i in range(0,self.num_queues-1):
             queue_name = "q%d" % i
             next_queue = "q%d" % (i+1)
             queues[queue_name] = next_queue
         queues["q%d"%(self.num_queues-1)] = ''
+        # print "%s" % queues
 
-        job_processed = 0
+        job_processed = collections.defaultdict(int)
         sleep_time = 0
         no_job_loops = 0
         while no_job_loops < 2:
             job = self.beanstalk.reserve(timeout=1)
             if job:
-                next_queue,i = job.body.split(':')
+                current_queue,i = job.body.split(':')
+                next_queue = queues.get(current_queue,None)
                 if next_queue:
-                    body = queues[next_queue]+':'+i
+                    body = next_queue+':'+i
                     self.beanstalk.use(next_queue)
                     self.beanstalk.put(body)
                 job.delete()
-                job_processed += 1
+                job_processed[current_queue] += 1
                 no_job_loops = 0
             else:
                 sleep_time += 0.1
                 no_job_loops += 1
-        logger.info("Processed %d jobs; slept %.1f seconds", job_processed, sleep_time)
+        logger.info("Processed %d jobs (%s); slept %.1f seconds",
+                    sum(job_processed.values()),
+                    sorted(job_processed.items()),
+                    sleep_time)
 
     def start_workers(self,num_workers,num_loaders,num_jobs):
         def run_loader():
@@ -72,23 +78,34 @@ class BeanstalkTester(object):
         start_time = time.time()
         run_processes(processes)
         run_time = time.time()-start_time
-        logger.info("Processing %d jobs took %f seconds; %.2f jobs/second", num_jobs, run_time, num_jobs/run_time)
+        logger.info("Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
+                    num_jobs,
+                    self.num_queues,
+                    run_time,
+                    num_jobs*self.num_queues/run_time)
 
 def main():
-    if len(sys.argv) < 4 or len(sys.argv) > 5:
-        print "Usage: test_qless.py #jobs #loaders #workers [#queues [REDISURL]]"
-        sys.exit(2)
+    ap = argparse.ArgumentParser()
+    ap.add_argument('num_jobs',type=int)
+    ap.add_argument('num_loaders',type=int)
+    ap.add_argument('num_workers',type=int)
+    ap.add_argument('num_queues',type=int, default=1, nargs='?')
+    ap.add_argument('--no-server',action='store_true',
+                    help="Don't start beanstalkd server")
 
-    num_jobs = int(sys.argv[1])
-    num_loaders = int(sys.argv[2])
-    num_workers = int(sys.argv[3])
-    if len(sys.argv) == 5:
-        num_queues = int(sys.argv[4])
-    else:
-        num_queues = 1
+    options = ap.parse_args()
 
-    tester = BeanstalkTester(num_queues)
-    tester.start_workers(num_workers,num_loaders,num_jobs)
+    if not options.no_server:
+        server_proc = subprocess.Popen(['./servers/beanstalkd'])
+
+    tester = BeanstalkTester(options.num_queues)
+    tester.start_workers(options.num_workers,options.num_loaders,options.num_jobs)
+
+    if not options.no_server:
+        server_proc.terminate()
+        status = server_proc.wait()
+        if status != 0:
+            logger.warn("beanstalkd exited with %d", status)
 
 if __name__ == '__main__':
     main()
