@@ -90,7 +90,7 @@ class QueueTester(object):
         start_time = time.time()
         run_processes(processes)
         run_time = time.time() - start_time
-        logger.info("Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
+        logger.info("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
                     self.num_jobs,
                     self.num_queues,
                     run_time,
