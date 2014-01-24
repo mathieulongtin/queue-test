@@ -39,11 +39,12 @@ def run_processes(functions):
 
 
 class QueueTester(object):
-    def __init__(self, num_workers, num_loaders, num_jobs, num_queues):
-        self.num_workers = num_workers
-        self.num_loaders = num_loaders
-        self.num_jobs = num_jobs
-        self.num_queues = num_queues
+    def __init__(self, options):
+        self.num_workers = options.num_workers
+        self.num_loaders = options.num_loaders
+        self.num_jobs = options.num_jobs
+        self.num_queues = options.num_queues
+        self.msg_size = options.msg_size
 
         self.queues = {}
         for i in range(0, self.num_queues - 1):
@@ -54,14 +55,21 @@ class QueueTester(object):
 
     def load(self, num_tasks):
         self.connect(self.queues.keys())
+        bytes_sent = 0
         for i in range(num_tasks):
-            self.send("q0", str(i))
-        logger.info("Loaded %d tasks", num_tasks)
+            msg = str(i)
+
+            if self.msg_size > len(msg):
+                msg *= self.msg_size/len(msg)
+            self.send("q0", msg)
+            bytes_sent += len(msg)
+        logger.info("Loaded %d tasks, %d bytes", num_tasks, bytes_sent)
 
     def work(self):
         self.connect(self.queues.keys())
 
         job_processed = collections.defaultdict(int)
+        bytes_processed = 0
         sleep_time = 0
         no_job_loops = 0
         while no_job_loops < 2:
@@ -73,14 +81,16 @@ class QueueTester(object):
                     self.send(next_queue, job.body)
                 job.done()
                 job_processed[current_queue] += 1
+                bytes_processed += len(job.body)
                 no_job_loops = 0
             else:
                 sleep_time += 0.1
                 no_job_loops += 1
-        logger.info("Processed %d jobs (%s); slept %.1f seconds",
+        logger.info("Processed %d jobs (%s); slept %.1f seconds; %d bytes processed",
                     sum(job_processed.values()),
                     sorted(job_processed.items()),
-                    sleep_time)
+                    sleep_time,
+                    bytes_processed)
 
     def start_workers(self):
         def run_loader():
@@ -95,6 +105,13 @@ class QueueTester(object):
                     self.num_queues,
                     run_time,
                     self.num_jobs * self.num_queues / run_time)
+        with open("results.txt","a") as result_file:
+            result_file.write("%s\t%f\t%f\t%s\n" % (
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                run_time, self.num_jobs * self.num_queues / run_time,
+                " ".join(sys.argv)
+            ))
+
 
     # Methods to over-ride
     def connect(self, queues):
@@ -119,6 +136,8 @@ class QueueTester(object):
         ap.add_argument('num_loaders', type=int)
         ap.add_argument('num_workers', type=int)
         ap.add_argument('num_queues', type=int, default=1, nargs='?')
+        ap.add_argument('--msg-size', type=int,
+                        help="Size of messages to send around")
         ap.add_argument('--no-server', action='store_true',
                         help="Don't start queue server")
         ap.add_argument('-v', '--verbose', action='store_true',
@@ -128,10 +147,7 @@ class QueueTester(object):
 
         logging.basicConfig(level=logging.DEBUG if options.verbose else logging.INFO)
 
-        test_harness = cls(options.num_workers,
-                           options.num_loaders,
-                           options.num_jobs,
-                           options.num_queues)
+        test_harness = cls(options)
 
         if not options.no_server:
             test_harness.start_server()
