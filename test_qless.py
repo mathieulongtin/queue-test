@@ -54,6 +54,10 @@ class QlessTester(utils.QueueTester):
 
         def done(self): self.job.complete()
 
+        # It turns out that calling redis once to create a new job and another to finish the first job
+        # is about the same speed as moving a job from Q1 to Q2.
+        def move(self, queue): self.job.complete(queue)
+
     def recv(self, timeout=0):
         for queue_name,queue in self.qless_queues.items():
             job = queue.pop()

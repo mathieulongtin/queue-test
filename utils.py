@@ -78,8 +78,13 @@ class QueueTester(object):
                 current_queue = job.queue
                 next_queue = self.queues.get(current_queue, None)
                 if next_queue:
-                    self.send(next_queue, job.body)
-                job.done()
+                    if hasattr(job,'move'):
+                        job.move(next_queue)
+                    else:
+                        self.send(next_queue, job.body)
+                        job.done()
+                else:
+                    job.done()
                 job_processed[current_queue] += 1
                 bytes_processed += len(job.body)
                 no_job_loops = 0
@@ -145,7 +150,8 @@ class QueueTester(object):
 
         options = ap.parse_args()
 
-        logging.basicConfig(level=logging.DEBUG if options.verbose else logging.INFO)
+        logging.basicConfig(level=logging.DEBUG if options.verbose else logging.INFO,
+                            format='%(asctime)s %(name)s[%(process)d] [%(levelname)s] %(message)s'.format(arg0=os.path.basename(sys.argv[0])))
 
         test_harness = cls(options)
 
@@ -155,4 +161,107 @@ class QueueTester(object):
         test_harness.start_workers()
 
         test_harness.stop_server()
+
+
+class AsyncQueueTester(QueueTester):
+    """Tester for queue that work in Async ways
+
+    The test harness starts loaders and workers as usual but monitors the queue status to see when it's done
+
+    """
+    def __init__(self, options):
+        self.num_workers = options.num_workers
+        self.num_loaders = options.num_loaders
+        self.num_jobs = options.num_jobs
+        self.num_queues = options.num_queues
+        self.msg_size = options.msg_size
+
+        self.queues = {}
+        for i in range(0, self.num_queues - 1):
+            queue_name = "q%d" % i
+            next_queue = "q%d" % (i + 1)
+            self.queues[queue_name] = next_queue
+        self.queues["q%d" % (self.num_queues - 1)] = ''
+
+    def load(self, num_tasks):
+        self.bytes_sent = 0
+        def msg_to_send(self,num_tasks):
+            for i in range(num_tasks):
+                msg = str(i)
+                if self.msg_size > len(msg):
+                    msg *= self.msg_size/len(msg)
+                    self.bytes_sent += len(msg)
+                yield ('q0',msg)
+
+        self.run_loader(msg_to_send(self,num_tasks))
+        logger.info("Loaded %d tasks, %d bytes", num_tasks, self.bytes_sent)
+
+    def work(self):
+        self.connect(self.queues.keys())
+
+        job_processed = collections.defaultdict(int)
+        bytes_processed = 0
+        sleep_time = 0
+        no_job_loops = 0
+        while no_job_loops < 2:
+            job = self.recv(timeout=1)
+            if job:
+                current_queue = job.queue
+                next_queue = self.queues.get(current_queue, None)
+                if next_queue:
+                    if hasattr(job,'move'):
+                        job.move(next_queue)
+                    else:
+                        self.send(next_queue, job.body)
+                        job.done()
+                else:
+                    job.done()
+                job_processed[current_queue] += 1
+                bytes_processed += len(job.body)
+                no_job_loops = 0
+            else:
+                sleep_time += 0.1
+                no_job_loops += 1
+        logger.info("Processed %d jobs (%s); slept %.1f seconds; %d bytes processed",
+                    sum(job_processed.values()),
+                    sorted(job_processed.items()),
+                    sleep_time,
+                    bytes_processed)
+
+    def start_workers(self):
+        def run_loader():
+            self.load(self.num_jobs / self.num_loaders)
+
+        processes = [run_loader, ] * self.num_loaders + [self.work, ] * self.num_workers
+        start_time = time.time()
+        run_processes(processes)
+        run_time = time.time() - start_time
+        logger.info("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
+                    self.num_jobs,
+                    self.num_queues,
+                    run_time,
+                    self.num_jobs * self.num_queues / run_time)
+        with open("results.txt","a") as result_file:
+            result_file.write("%s\t%f\t%f\t%s\n" % (
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                run_time, self.num_jobs * self.num_queues / run_time,
+                " ".join(sys.argv)
+            ))
+
+
+    # Methods to over-ride
+    def connect(self, queues):
+        raise NotImplementedError()
+
+    def run_loader(self, queue, message):
+        raise NotImplementedError()
+
+    def recv(self, timeout=0):
+        raise NotImplementedError()
+
+    def start_server(self, queues_to_watch=None):
+        logger.warn("No start_server defined")
+
+    def stop_server(self):
+        logger.warn("No stop_server defined")
 
