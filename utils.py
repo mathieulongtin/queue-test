@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def run_processes(functions):
     pids = set()
     try:
-        counter = collections.Counter()
+        counter = collections.defaultdict(int)
         for function in functions:
             name = function.__name__
             counter[name] += 1
@@ -197,36 +197,29 @@ class AsyncQueueTester(QueueTester):
         logger.info("Loaded %d tasks, %d bytes", num_tasks, self.bytes_sent)
 
     def work(self):
-        self.connect(self.queues.keys())
+        self.job_processed = collections.defaultdict(int)
+        self.bytes_processed = 0
 
-        job_processed = collections.defaultdict(int)
-        bytes_processed = 0
-        sleep_time = 0
-        no_job_loops = 0
-        while no_job_loops < 2:
-            job = self.recv(timeout=1)
-            if job:
-                current_queue = job.queue
-                next_queue = self.queues.get(current_queue, None)
-                if next_queue:
-                    if hasattr(job,'move'):
-                        job.move(next_queue)
-                    else:
-                        self.send(next_queue, job.body)
-                        job.done()
+        def process_job(job):
+            current_queue = job.queue
+            next_queue = self.queues.get(current_queue, None)
+            if next_queue:
+                if hasattr(job,'move'):
+                    job.move(next_queue)
                 else:
+                    self.send(next_queue, job.body)
                     job.done()
-                job_processed[current_queue] += 1
-                bytes_processed += len(job.body)
-                no_job_loops = 0
             else:
-                sleep_time += 0.1
-                no_job_loops += 1
-        logger.info("Processed %d jobs (%s); slept %.1f seconds; %d bytes processed",
-                    sum(job_processed.values()),
-                    sorted(job_processed.items()),
-                    sleep_time,
-                    bytes_processed)
+                job.done()
+            self.job_processed[current_queue] += 1
+            self.bytes_processed += len(job.body)
+
+        self.run_worker(process_job,timeout=2)
+
+        logger.info("Processed %d jobs (%s); %d bytes processed",
+                    sum(self.job_processed.values()),
+                    sorted(self.job_processed.items()),
+                    self.bytes_processed)
 
     def start_workers(self):
         def run_loader():
