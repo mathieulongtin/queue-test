@@ -5,6 +5,13 @@ import utils
 
 logger = logging.getLogger(__name__)
 
+if hasattr(qless,'client'):
+    # Pre V0.10 used client
+    qless_client = qless.client
+elif hasattr(qless,'Client'):
+    # V0.10 change to Client
+    qless_client = qless.Client
+
 class QlessTester(utils.QueueTester):
     server_process = None
 
@@ -17,7 +24,7 @@ class QlessTester(utils.QueueTester):
         timeout = time.time() + 10
         while time.time() < timeout:
             try:
-                qless_cx = qless.client(url='redis://localhost')
+                qless_cx = qless_client(url='redis://localhost')
                 qless_cx.queues.counts
                 return
             except Exception as error:
@@ -34,7 +41,7 @@ class QlessTester(utils.QueueTester):
             logger.warn("redis exited with %d", status)
 
     def connect(self,queues_to_watch=None):
-        self.qless_cx = qless.client(url='redis://localhost')
+        self.qless_cx = qless_client(url='redis://localhost')
         self.qless_queues_to_watch = queues_to_watch
         self.qless_queues = dict([ (_,self.qless_cx.queues[_]) for _ in queues_to_watch ])
 
