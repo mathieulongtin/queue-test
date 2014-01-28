@@ -53,7 +53,7 @@ class QpyTester(object):
         #self.out_socket.hwm = 1
 
         start_time = time.time()
-        counter = collections.Counter()
+        counter = collections.defaultdict(int)
         last_sleep = 0
         while counter['total'] < num_jobs:
             if not self.in_socket.poll(timeout=100):
@@ -83,7 +83,7 @@ class QpyTester(object):
         job_processed = 0
         sleep_time = 0
         no_job_loops = 0
-        counter = collections.Counter()
+        counter = collections.defaultdict(int)
         self.in_socket.poll(timeout=1000)
         while no_job_loops < 10:
             try:
