@@ -2,3 +2,5 @@ beanstalkc
 qless-py
 pyzmq
 pynsq
+kombu
+decorator
