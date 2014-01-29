@@ -40,6 +40,7 @@ def run_processes(functions):
 
 class QueueTester(object):
     def __init__(self, options):
+        self.options = options
         self.num_workers = options.num_workers
         self.num_loaders = options.num_loaders
         self.num_jobs = options.num_jobs
@@ -133,20 +134,24 @@ class QueueTester(object):
 
     def stop_server(self):
         logger.warn("No stop_server defined")
+        
+    @classmethod
+    def add_arguments(cls,argparser):
+        argparser.add_argument('num_jobs', type=int)
+        argparser.add_argument('num_loaders', type=int)
+        argparser.add_argument('num_workers', type=int)
+        argparser.add_argument('num_queues', type=int, default=1, nargs='?')
+        argparser.add_argument('--msg-size', type=int,
+                help="Size of messages to send around")
+        argparser.add_argument('--no-server', action='store_true',
+                help="Don't start queue server")
+        argparser.add_argument('-v', '--verbose', action='store_true',
+                help='Debug output is enabled')
 
     @classmethod
     def main(cls):
         ap = argparse.ArgumentParser()
-        ap.add_argument('num_jobs', type=int)
-        ap.add_argument('num_loaders', type=int)
-        ap.add_argument('num_workers', type=int)
-        ap.add_argument('num_queues', type=int, default=1, nargs='?')
-        ap.add_argument('--msg-size', type=int,
-                        help="Size of messages to send around")
-        ap.add_argument('--no-server', action='store_true',
-                        help="Don't start queue server")
-        ap.add_argument('-v', '--verbose', action='store_true',
-                        help='Debug output is enabled')
+        cls.add_arguments(ap)
 
         options = ap.parse_args()
 
@@ -169,20 +174,6 @@ class AsyncQueueTester(QueueTester):
     The test harness starts loaders and workers as usual but monitors the queue status to see when it's done
 
     """
-    def __init__(self, options):
-        self.num_workers = options.num_workers
-        self.num_loaders = options.num_loaders
-        self.num_jobs = options.num_jobs
-        self.num_queues = options.num_queues
-        self.msg_size = options.msg_size
-
-        self.queues = {}
-        for i in range(0, self.num_queues - 1):
-            queue_name = "q%d" % i
-            next_queue = "q%d" % (i + 1)
-            self.queues[queue_name] = next_queue
-        self.queues["q%d" % (self.num_queues - 1)] = ''
-
     def load(self, num_tasks):
         self.bytes_sent = 0
         def msg_to_send(self,num_tasks):

@@ -32,14 +32,29 @@ class RabbitMqTester(utils.AsyncQueueTester):
     #            logger.info("Removing %s", path)
     #            os.unlink(path)
 
+    @classmethod
+    def add_arguments(cls,argparser):
+        super(RabbitMqTester,cls).add_arguments(argparser)
+        argparser.add_argument('--not-durable',
+                dest='durable', action='store_false', default=True,
+                help="Make queues not durable")
+
+
     def connect(self):
         self.connection = kombu.Connection('amqp://')
-        self.task_exchange = kombu.Exchange('test', type='direct')
+        
+        if self.options.durable:
+            prefix = 'dur_'
+        else:
+            prefix = 'tmp_'
+        self.task_exchange = kombu.Exchange(prefix+'test', type='direct', durable=self.options.durable)
         self.producer = kombu.Producer(self.connection, exchange=self.task_exchange)
         kombu.common.maybe_declare(self.task_exchange, self.connection)
         self.task_queues = [ ]
         for queue_name in self.queues.keys():
-            queue = kombu.Queue(queue_name, self.task_exchange, routing_key=queue_name)
+            queue = kombu.Queue(prefix+queue_name,
+                    self.task_exchange, routing_key=queue_name,
+                    durable=self.options.durable)
             self.task_queues.append(queue)
             kombu.common.maybe_declare(queue, self.connection)
 
@@ -82,7 +97,8 @@ class RabbitMqTester(utils.AsyncQueueTester):
     def send(self, queue, message):
         self.producer.publish([queue,message], 
                 routing_key=queue,
-                serializer='json')
+                serializer='json',
+                delivery_mode=2 if self.options.durable else 1)
 
 if __name__ == '__main__':
     RabbitMqTester.main()
