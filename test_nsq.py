@@ -77,7 +77,7 @@ class NsqTester(utils.AsyncQueueTester):
         readers = { }
         for queue_name in self.queues.keys():
             readers[queue_name] = nsq.Reader(topic=queue_name, channel='test',
-                    max_in_flight=5,
+                    max_in_flight=100,
                     message_handler=message_handler,
                     nsqd_tcp_addresses=['127.0.0.1:4150'])
 
