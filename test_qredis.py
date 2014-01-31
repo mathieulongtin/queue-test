@@ -18,10 +18,11 @@ class QpyTester(utils.QueueTester):
         timeout = time.time() + 10
         while time.time() < timeout:
             try:
-                client = redis.StrictRedis.from_url(url='redis://localhost')
+                client = qredis.Client()
+                client.stats()
                 return
             except Exception as error:
-                logger.warn("Error connecting to redis: %s", error)
+                # logger.warn("Error connecting to redis: %s", error)
                 time.sleep(1)
         self.server_process.kill()
         raise OSError("Redis not answering after 10 seconds")
