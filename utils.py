@@ -106,7 +106,7 @@ class QueueTester(object):
         start_time = time.time()
         run_processes(processes)
         run_time = time.time() - start_time
-        logger.info("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
+        logger.warn("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
                     self.num_jobs,
                     self.num_queues,
                     run_time,
@@ -142,11 +142,17 @@ class QueueTester(object):
         argparser.add_argument('num_workers', type=int)
         argparser.add_argument('num_queues', type=int, default=1, nargs='?')
         argparser.add_argument('--msg-size', type=int,
-                help="Size of messages to send around")
+                               help="Size of messages to send around")
         argparser.add_argument('--no-server', action='store_true',
-                help="Don't start queue server")
-        argparser.add_argument('-v', '--verbose', action='store_true',
-                help='Debug output is enabled')
+                               help="Don't start queue server")
+        argparser.add_argument('-v', '--verbose',
+                               action='store_const', const=logging.DEBUG,
+                               dest='loglevel', default=logging.INFO,
+                               help='Debug output is enabled')
+        argparser.add_argument('-q', '--quiet',
+                               action='store_const', const=logging.WARN,
+                               dest='loglevel', 
+                               help='Debug output is enabled')
 
     @classmethod
     def main(cls):
@@ -155,7 +161,7 @@ class QueueTester(object):
 
         options = ap.parse_args()
 
-        logging.basicConfig(level=logging.DEBUG if options.verbose else logging.INFO,
+        logging.basicConfig(level=options.loglevel,
                             format='%(asctime)s %(name)s[%(process)d] [%(levelname)s] %(message)s'.format(arg0=os.path.basename(sys.argv[0])))
 
         test_harness = cls(options)
@@ -220,7 +226,7 @@ class AsyncQueueTester(QueueTester):
         start_time = time.time()
         run_processes(processes)
         run_time = time.time() - start_time
-        logger.info("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
+        logger.warn("RESULT: Processing %d jobs through %d queues took %f seconds; %.2f jobs/second",
                     self.num_jobs,
                     self.num_queues,
                     run_time,
