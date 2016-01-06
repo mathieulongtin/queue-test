@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import socket
 import time
 import utils
 import kombu, kombu.pools, kombu.common
@@ -82,7 +83,12 @@ class RabbitMqTester(utils.AsyncQueueTester):
 
         def message_handler(body, message):
             self.last_recv = time.time()
-            #logger.info("Got message: %s", body)
+            #logger.info("Got message: %s; %s", body, message)
+            #logger.info("  delivery_info: %s", message.delivery_info)
+            #logger.info("   delivery_tag: %s", message.delivery_tag)
+            #logger.info("        headers: %s", message.headers)
+            #logger.info("     properties: %s", message.properties)
+            #raise NotImplementedError()
             job = self.Job(message,body)
             job_processor(job)
 
@@ -90,8 +96,11 @@ class RabbitMqTester(utils.AsyncQueueTester):
             while True:
                 try:
                     self.connection.drain_events(timeout=1)
+                except socket.timeout:
+                    break
                 except Exception as error:
-                    logger.error("Drain error: %s", error)
+                    logger.error("Drain error: (%s) %s", type(error), error)
+                    
                     break
 
     def send(self, queue, message):

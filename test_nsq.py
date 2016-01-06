@@ -84,7 +84,7 @@ class NsqTester(utils.AsyncQueueTester):
         def check_timeout():
             current_time = time.time()
             if current_time - timeout > self.last_recv:
-                logger.warn("Worker timeout")
+                logger.info("Worker timeout")
                 ioloop.stop()
 
         tornado.ioloop.PeriodicCallback(check_timeout, 1000).start()
